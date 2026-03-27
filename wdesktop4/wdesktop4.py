@@ -2454,6 +2454,7 @@ class MainWindow(Gtk.ApplicationWindow):
             try:
                 for i in range(_n):
                     btna = Gtk.Button(label=list_names[i])
+                    self.align_label(btna)
                     btna.connect("clicked", self.on_open_with, list_apps[i], _file, popover)
                     box_exp1.append(btna)
             except:
