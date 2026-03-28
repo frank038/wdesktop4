@@ -1,5 +1,5 @@
 # wdesktop4
-An application that manage the desktop.
+An application that manages the desktop.
 
 Requirements:
 - python3
