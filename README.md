@@ -27,6 +27,7 @@ Features:
 - right mouse button for some operations
 - center mouse button for other functions
 - easy creation of more thumbnailers
-- desktop files support (programs).
+- desktop files support (programs)
+- supports the command line arguments trash:// (the recycle bin) and media://DEVICE (mass storage devices) of my file manager SimpleFM6.
 
 Do not support multi monitors. May have some unknown issues.
