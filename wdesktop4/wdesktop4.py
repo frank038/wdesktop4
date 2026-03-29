@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# V. 0.5
+# V. 0.5.1
 
 from cfgMain import *
 from cfglang import *
@@ -497,7 +497,7 @@ class deviceItem(Gtk.Widget):
     
 
 class customItem(Gtk.Widget):
-    def __init__(self, _parent, _w, _h, _iw, _fm, _fs, _itext):
+    def __init__(self, _parent, _w, _h, _iw, _fm, _fs, _itext, _type):
         super().__init__()
         self._parent = _parent
         self._w = _w # width
@@ -505,15 +505,23 @@ class customItem(Gtk.Widget):
         self._iw = _iw # icon width and height
         self._fm = _fm # font family
         self._fs = _fs # font size
-        self._type = "file"
+        self._type = _type # "file" or "desktop"
         self._itext = _itext # label
         self._ci = 0 # custom image
         ####################
         self._file_path = os.path.join(DESKTOP_PATH, self._itext)
-        self._file = Gio.File.new_for_path(os.path.join(DESKTOP_PATH, self._itext))
+        self._file = Gio.File.new_for_path(self._file_path)
         self._file_info = self._file.query_info("standard::*,owner::user", Gio.FileQueryInfoFlags.NONE,None)
         #
         self.is_link = os.path.islink(self._file_path)
+        #
+        if self._type == "desktop" and not self.is_link:
+            self._name = ""
+            self._icon = ""
+            self._comment = ""
+            self._exec = ""
+            self.on_set_desktop_entries()
+        
         # 0 inactive - 1 active mouse over - 2 active mouse selected
         self._v = 0
         self._snapshot = None
@@ -544,7 +552,44 @@ class customItem(Gtk.Widget):
         self.right_mouse_pressed = 0
         self.emblem_clicked = 0
         
+    def on_set_desktop_entries(self):
+        self._name = ""
+        self._icon = ""
+        self._comment = ""
+        self._exec = ""
+        _file_tmp = ""
+        _file_content = []
+        _f = open(self._file_path , "r")
+        _file_tmp = _f.read()
+        _f.close()
+        _file_content = _file_tmp.split("\n")
+        #
+        for el in _file_content:
+            if self._name != "" and self._comment != "" and self._icon != "" and self._exec != "":
+                break
+            entry = el.split("=")
+            if "name" in entry[0].lower():
+                self._name = "=".join(entry[1:])
+            elif "commen" in entry[0].lower():
+                self._comment = "=".join(entry[1:])
+            elif "icon" in entry[0].lower():
+                self._icon = "=".join(entry[1:])
+            elif "exec" in entry[0].lower():
+                self._exec = "=".join(entry[1:])
+        if self._exec == "":
+            self._type = "file"
+            self._name = ""
+            self._icon = ""
+            self._comment = ""
+            return
+        self._name = self._name[0].upper()+self._name[1:]
+        self._comment = self._comment[0].upper()+self._comment[1:]
+        if self._icon == "":
+            self._icon = os.path.join(DESKTOP_PATH,"icons","icon1.svg")
+        
     def on_enter(self, _c, _x, _y) -> bool:
+        if self._type == "desktop":
+            self.set_tooltip_text(self._comment)
         if self._parent.left_click_setted == 0 and self._state == 0:
             self._v = 1
             self.queue_draw()
@@ -583,7 +628,15 @@ class customItem(Gtk.Widget):
     def on_file_execute(self, btn, popover):
         popover.popdown()
         try:
-            Popen([self._file_path])
+            if self._type == "file":
+                f_exec = self._file_path
+            elif self._type == "desktop":
+                f_exec = self._exec
+            _ddir = os.path.dirname(f_exec)
+            if _ddir == "" or _ddir == None or not os.path.exists(_ddir):
+                Popen([f_exec])
+            else:
+                Popen([f_exec], cwd=os.path.dirname(f_exec))
         except Exception as E:
             itemWindow(self._parent, MWERROR, str(E))
     
@@ -651,10 +704,14 @@ class customItem(Gtk.Widget):
                     return
         #
         if n == 2:
-            if os.path.isfile(self._file_path):
-                if os.access(self._file_path, os.X_OK):
-                    self.exec_file()
-                    return
+            if self._type == "file":
+                if os.path.isfile(self._file_path):
+                    if os.access(self._file_path, os.X_OK):
+                        self.exec_file()
+                        return
+            elif self._type == "desktop":
+                self.exec_file()
+                return
             self.on_open_file()
             return
         if self.left_mouse_pressed == 1:
@@ -724,6 +781,9 @@ class customItem(Gtk.Widget):
                 return thumb_file
         return None
     
+    def find_icon_desktop(self):
+        return self._icon
+    
     # _obj is snapshot
     def do_snapshot(self, _obj):
         if self._snapshot == None:
@@ -732,7 +792,10 @@ class customItem(Gtk.Widget):
         ret = None
         icon_mime = self._file_info.get_content_type()
         if USE_THUMBS == 1:
-            ret = self.find_icon_thumb(icon_mime)
+            if self._type == "file":
+                ret = self.find_icon_thumb(icon_mime)
+            elif self._type == "desktop":
+                ret = self.find_icon_desktop()
         if ret == None:
             display = Gdk.Display.get_default()
             icon_theme = Gtk.IconTheme.get_for_display(display)
@@ -910,6 +973,9 @@ class customItem(Gtk.Widget):
         layout = Pango.Layout(context)
         layout.set_font_description(font)
         #
+        if self._type == "desktop":
+            old_itext = self._itext
+            self._itext = self._name or self._itext
         if self._itext == "" or self._itext == None:
             self._itext = "(None)"
         #
@@ -1001,7 +1067,10 @@ class customItem(Gtk.Widget):
             _obj.restore()
             #
             _text_height += layout.get_pixel_size().height
-    
+        #
+        if self._type == "desktop":
+            self._itext = old_itext
+        
     # def do_measure(self, orientation, for_size):
         # return self._w, self._w, -1, -1
        
@@ -1276,7 +1345,7 @@ class deviceProperty(Gtk.Window):
         lbl_size = Gtk.Label(label="<b>{}</b> ".format(MWSIZE))
         lbl_size.set_use_markup(True)
         lbl_size.set_xalign(1)
-        _grid.attach(lbl_model,0,3,1,1)
+        _grid.attach(lbl_size,0,3,1,1)
         lbl_size1 = Gtk.Label(label=self._data[3])
         lbl_size1.set_xalign(0)
         _grid.attach_next_to(lbl_size1,lbl_size,Gtk.PositionType.RIGHT,1,1)
@@ -1691,7 +1760,16 @@ class MainWindow(Gtk.ApplicationWindow):
                 self.WIDGET_TO_FUTURE_PLACE.append(custom)
             else:
                 _tx, _ty = self.convert_pos_to_px(_tr,_tc)
-                self.populate_items(_tx,_ty, _tr, _tc, item_name, "file")
+                #
+                _file_path = os.path.join(DESKTOP_PATH, item_name)
+                _file = Gio.File.new_for_path(_file_path)
+                _file_info = _file.query_info("standard::*,owner::user", Gio.FileQueryInfoFlags.NONE,None)
+                _mime = _file_info.get_content_type()
+                # application/x-desktop
+                if _mime == "application/x-desktop":
+                    self.populate_items(_tx,_ty, _tr, _tc, item_name, "desktop")
+                else:
+                    self.populate_items(_tx,_ty, _tr, _tc, item_name, "file")
             
     
 ############# devices
@@ -2318,8 +2396,8 @@ class MainWindow(Gtk.ApplicationWindow):
         self.WIDGET_LIST_PATH_POS.append((_name,custom.r,custom.c))
         
     def on_populate_items(self, _x, _y, _r, _c, _name, _type, _icon=None):
-        if _type == "file":
-            custom = customItem(self, self.widget_size_w,self.widget_size_h, self.w_icon_size, self._fm, self._font_size, _name)
+        if _type == "file" or _type == "desktop":
+            custom = customItem(self, self.widget_size_w,self.widget_size_h, self.w_icon_size, self._fm, self._font_size, _name, _type)
         elif _type == "R":
             custom = trashItem(self, self.widget_size_w,self.widget_size_h,self.w_icon_size,self._fm,self._font_size,_name,"R")
         elif _type == "D":
@@ -2355,7 +2433,11 @@ class MainWindow(Gtk.ApplicationWindow):
             item = os.path.basename(_file1.get_path())
             for el in self.WIDGET_LIST[:]:
                 if el._itext == item:
-                    if el._ci == 1:
+                    if el._type == "desktop" and not el.is_link:
+                        el.on_set_desktop_entries()
+                        el.queue_draw()
+                        break
+                    elif el._ci == 1:
                         el.queue_draw()
                         break
         elif event == Gio.FileMonitorEvent.DELETED or event == Gio.FileMonitorEvent.MOVED_OUT: # done
@@ -2413,6 +2495,17 @@ class MainWindow(Gtk.ApplicationWindow):
         popover.popdown()
         _app.launch([_file], None)
     
+    def on_file_execute(self, btn, _file, popover):
+        popover.popdown()
+        try:
+            _ddir = os.path.dirname(_file)
+            if _ddir == "" or _ddir == None or not os.path.exists(_ddir):
+                Popen([_file])
+            else:
+                Popen([_file], cwd=os.path.dirname(_file))
+        except Exception as E:
+            itemWindow(self, MWERROR, str(E))
+    
     # _type: 1 one item - 2 multi selection
     def context_menu(self, _item, _x, _y, _type):
         if _type == 1:
@@ -2461,6 +2554,20 @@ class MainWindow(Gtk.ApplicationWindow):
                 pass
             #
             _exp1.set_child(_scroll)
+            #
+            if _item._type == "file":
+                if os.path.isfile(_file):
+                    if os.access(_file, os.X_OK):
+                        btn_exec = Gtk.Button(label=MWEXECFILE2)
+                        self.align_label(btn_exec)
+                        btn_exec.connect("clicked", self.on_file_execute, _file, popover)
+                        popover_box.append(btn_exec)
+            elif _item._type == "desktop":
+                _exec = _item._exec
+                btn_exec = Gtk.Button(label=MWEXECFILE2)
+                self.align_label(btn_exec)
+                btn_exec.connect("clicked", self.on_file_execute, _exec, popover)
+                popover_box.append(btn_exec)
             #
             button_copy = Gtk.Button(label=MWCOPY)
             self.align_label(button_copy)
@@ -2707,7 +2814,10 @@ class MainWindow(Gtk.ApplicationWindow):
     def align_label(self, btn):
         _ch = btn.get_child()
         if isinstance(_ch, Gtk.Label):
-            _ch.set_halign(Gtk.Align.START)
+            if BUTTON_LABEL_ALIGN == 0:
+                _ch.set_halign(Gtk.Align.START)
+            elif BUTTON_LABEL_ALIGN == 1:
+                _ch.set_halign(Gtk.Align.END)
     
     def on_delete(self, _wdg, _item, _popover):
         _errors = ""

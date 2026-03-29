@@ -71,3 +71,5 @@ USE_BACKGROUND_COLOR = 2
 BACKGROUND_COLOR = "#777777"
 # the folder to copy in the desktop already exists: 0 rename - 1 merge
 FOLDER_MERGE = 1
+# button label alignment: 0 left - 1 right
+BUTTON_LABEL_ALIGN=0
