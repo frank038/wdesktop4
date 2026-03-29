@@ -26,6 +26,7 @@ Features:
 - left mouse button for each item operations
 - right mouse button for some operations
 - center mouse button for other functions
-- easy creation of more thumbnailers.
+- easy creation of more thumbnailers
+- desktop files support (programs).
 
 Do not support multi monitors. May have some unknown issues.
