@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# V. 0.5.1
+# V. 0.6
 
 from cfgMain import *
 from cfglang import *
@@ -89,7 +89,7 @@ if USE_THUMBS == 1:
             USE_THUMBS = 0
 
 if USE_THUMBS == 1:
-    from pythumb import create_thumbnail
+    from pythumb import create_thumbnail, delete_thumb
 
 if USE_MEDIA == 1:
     import dbus, psutil
@@ -322,6 +322,7 @@ class deviceItem(Gtk.Widget):
         self._icon = _icon
         self._state = 0
         self._v = 0
+        self._texture = None
         #
         self.set_size_request(self._w, self._h)
         # mouse motion
@@ -826,10 +827,12 @@ class customItem(Gtk.Widget):
             if not os.path.exists(icon_file_path):
                 icon_file_path = os.path.join(_curr_dir, "icons", "icon.svg")
             texture = Gdk.Texture.new_from_filename(icon_file_path)
+            self._texture = texture
         else:
             icon_file_path = ret
             texture = Gdk.Texture.new_from_filename(icon_file_path)
             self._ci = 1 # custom icon
+            self._texture = texture
         #
         texture_w = texture.get_width()
         texture_h = texture.get_height()
@@ -1548,8 +1551,10 @@ class MainWindow(Gtk.ApplicationWindow):
         if USE_LAYERSHELL == 1:
             GtkLayerShell.init_for_window(self)
             GtkLayerShell.auto_exclusive_zone_enable(self)
-            GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BACKGROUND)
-            # GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BOTTOM)
+            if LAYER_PLACEMENT == 1:
+                GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BACKGROUND)
+            elif LAYER_PLACEMENT == 0:
+                GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BOTTOM)
             GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.ON_DEMAND)
             # GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
         
@@ -1632,9 +1637,10 @@ class MainWindow(Gtk.ApplicationWindow):
         self.da_gesture_d.connect('drag-end', self.on_da_gesture_d_e, self.da)
         #
         ## main - dragging
+        self.dragging_prepare = 0
         drag_controller = Gtk.DragSource()
         drag_controller.connect("prepare", self.on_drag_prepare)
-        # drag_controller.connect("drag-begin", self.on_drag_begin)
+        drag_controller.connect("drag-begin", self.on_drag_begin)
         # drag_controller.connect("drag-end", self.on_drag_end)
         self.add_controller(drag_controller)
         # drop
@@ -2088,6 +2094,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 el.queue_draw()
     
     def on_drag_prepare(self, ctrl, _x, _y, data=None):
+        self.dragging_prepare = 1
         # rubberband in action, do not select anything
         if self.isDragging == 1:
             return
@@ -2113,17 +2120,22 @@ class MainWindow(Gtk.ApplicationWindow):
             content = Gdk.ContentProvider.new_for_bytes(_atom, gbytes)
             return content
             
-    # def on_drag_begin(self, ctrl, drag):
-        # # icon = Gtk.WidgetPaintable.new(self)
-        # # ctrl.set_icon(icon, 0, 0)
-        # pass
+    def on_drag_begin(self, ctrl, drag):
+        # icon = Gtk.WidgetPaintable.new(self)
+        # ctrl.set_icon(icon, 0, 0)
+        # THUMB_DRAG_ICON_SIZE
+        # if THUMB_DRAG_MAX == 0:
+            # pass
+        # elif THUMB_DRAG_MAX > 0:
+            # pass
+        pass
     
     # def on_drag_end(self, ctrl, drag, data=None):
         # pass
     
     def on_drop(self, ctrl, value, _x, _y):
         # supposing internal item moving
-        if len(self.selection_widget_found) > 0:
+        if len(self.selection_widget_found) > 0 and self.dragging_prepare == 1:
             # only one item
             if len(self.selection_widget_found) > 1:
                 return
@@ -2136,6 +2148,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     break
                 # do not overlay the items
                 if i == 0 and (_r,_c) in self.WIDGET_LIST_POS:
+                    self.dragging_prepare = 0
                     break
                     return
                 #
@@ -2155,6 +2168,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 #
                 i += 1
             #
+            self.dragging_prepare = 0
             return
         #
         _operation = ""
@@ -2164,6 +2178,7 @@ class MainWindow(Gtk.ApplicationWindow):
             _operation = "cut"
         
         if _operation == "":
+            
             return
         
         if isinstance(value, Gdk.FileList):
@@ -2386,6 +2401,9 @@ class MainWindow(Gtk.ApplicationWindow):
             item = _data[1]
             self._fixed.remove(item)
             self.WIDGET_LIST.remove(item)
+            for el in self.selection_widget_found[:]:
+                if el == item:
+                    self.selection_widget_found.remove(el)
         
     def populate_items(self, _x, _y, _r, _c, _name, _type):
         custom = self.on_populate_items(_x, _y, _r, _c, _name, _type)
@@ -2440,7 +2458,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     elif el._ci == 1:
                         el.queue_draw()
                         break
-        elif event == Gio.FileMonitorEvent.DELETED or event == Gio.FileMonitorEvent.MOVED_OUT: # done
+        elif event == Gio.FileMonitorEvent.DELETED or event == Gio.FileMonitorEvent.MOVED_OUT:
             item = os.path.basename(_file1.get_path())
             for el in self.WIDGET_LIST[:]:
                 if el._itext == item:
@@ -2465,9 +2483,10 @@ class MainWindow(Gtk.ApplicationWindow):
                     break
             self.rebuild_file_item_pos = 1
         
-        elif event == Gio.FileMonitorEvent.CREATED or event == Gio.FileMonitorEvent.MOVED_IN: # done
+        elif event == Gio.FileMonitorEvent.CREATED or event == Gio.FileMonitorEvent.MOVED_IN:
             item = os.path.basename(_file1.get_path())
             _tr, _tc = self.find_item_new_pos()
+            # print(" ")
             if _tr == -1 and _tc == -1:
                 custom = self.on_populate_items(-1, -1, -1, -1, item, "file")
                 self.WIDGET_TO_FUTURE_PLACE.append(custom)
@@ -2476,7 +2495,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 self.populate_items(_tx,_ty, _tr, _tc, item, "file")
             self.rebuild_file_item_pos = 1
             
-        elif event == Gio.FileMonitorEvent.RENAMED: # done
+        elif event == Gio.FileMonitorEvent.RENAMED:
             # old name - new name
             for el in self.WIDGET_LIST:
                 if el._itext == os.path.basename(_file1.get_path()):
@@ -2629,12 +2648,12 @@ class MainWindow(Gtk.ApplicationWindow):
             
             button_trash = Gtk.Button(label=MWTRASH)
             self.align_label(button_trash)
-            button_trash.connect("clicked", self.on_button_clicked, "trash", _iteml, popover)
+            button_trash.connect("clicked", self.on_button_clicked, "trash", _iteml, popover, (_item.r, _item.c, _item.x, _item.y))
             popover_box.append(button_trash)
             
             button_delete = Gtk.Button(label=MWDELETE)
             self.align_label(button_delete)
-            button_delete.connect("clicked", self.on_button_clicked, "delete", _iteml, popover)
+            button_delete.connect("clicked", self.on_button_clicked, "delete", _iteml, popover, (_item.r, _item.c, _item.x, _item.y))
             popover_box.append(button_delete)
             
             button_property = Gtk.Button(label=MWPROPERTY)
@@ -2799,17 +2818,16 @@ class MainWindow(Gtk.ApplicationWindow):
     
     # send items to trash
     def on_trash(self, _wdg, _item, _popover):
+        _popover.popdown()
         if isinstance(_item, list):
             for el in _item:
                 file_name = el._itext
                 _f = Gio.File.new_for_path(os.path.join(DESKTOP_PATH,file_name))
                 _f.trash()
-            _popover.popdown()
         else:
             file_name = _item._itext
             _f = Gio.File.new_for_path(os.path.join(DESKTOP_PATH,file_name))
             _f.trash()
-            _popover.popdown()
     
     def align_label(self, btn):
         _ch = btn.get_child()
@@ -2885,7 +2903,7 @@ class MainWindow(Gtk.ApplicationWindow):
         if _errors != "":
             itemWindow(self, MWERROR, _errors)
     
-    def on_button_clicked(self, _w, _type, _item, popover):
+    def on_button_clicked(self, _w, _type, _item, popover, _place=None):
         if _type == "open":
             popover.popdown()
             self.on_open_file(_item)
@@ -2944,10 +2962,14 @@ class MainWindow(Gtk.ApplicationWindow):
             ren_pop.set_child(popover_box)
             #
             if isinstance(_item, list):
-                _r = _item[-1].r
-                _c = _item[-1].c
-                _x = _item[-1].x
-                _y = _item[-1].y+self.w_icon_size+10
+                # _r = _item[-1].r
+                # _c = _item[-1].c
+                # _x = _item[-1].x
+                # _y = _item[-1].y+self.w_icon_size+10
+                _r = _place[0]
+                _c = _place[1]
+                _x = _place[2]
+                _y = _place[3]+self.w_icon_size+10
             else:
                 _r = _item.r
                 _c = _item.c
@@ -2982,10 +3004,14 @@ class MainWindow(Gtk.ApplicationWindow):
             ren_pop.set_child(popover_box)
             #
             if isinstance(_item,list):
-                _r = _item[-1].r
-                _c = _item[-1].c
-                _x = _item[-1].x
-                _y = _item[-1].y+self.w_icon_size+10
+                # _r = _item[-1].r
+                # _c = _item[-1].c
+                # _x = _item[-1].x
+                # _y = _item[-1].y+self.w_icon_size+10
+                _r = _place[0]
+                _c = _place[1]
+                _x = _place[2]
+                _y = _place[3]+self.w_icon_size+10
             else:
                 _r = _item.r
                 _c = _item.c
@@ -3092,15 +3118,26 @@ class MainWindow(Gtk.ApplicationWindow):
         
         popover_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         
+        btn_refresh = Gtk.Button(label=MWREFRESH)
+        self.align_label(btn_refresh)
+        btn_refresh.connect("clicked", self.on_refresh_all, popover)
+        popover_box.append(btn_refresh)
+        
         btn_replace = Gtk.Button(label=MWREPLACEALL)
         self.align_label(btn_replace)
         btn_replace.connect("clicked", self.on_replace_all_clicked, popover)
         popover_box.append(btn_replace)
         
+        btn_clean_thumb = Gtk.Button(label=MWCLEANTHUMB)
+        self.align_label(btn_clean_thumb)
+        btn_clean_thumb.connect("clicked", self.on_clean_thumb, popover)
+        popover_box.append(btn_clean_thumb)
+        
         button = Gtk.Button(label=MWEXIT)
         self.align_label(button)
         button.connect("clicked", self.on_center_button_clicked, "exit", _item, popover)
         popover_box.append(button)
+        
         popover.set_child(popover_box)
         #
         _rect = Gdk.Rectangle()
@@ -3187,13 +3224,20 @@ class MainWindow(Gtk.ApplicationWindow):
                 _f = open(_file_path, "w")
                 _f.close()
         except Exception as E:
-            print(str(E))
             itemWindow(self, MWERROR, str(E))
     
     def on_btn_terminal(self, btn, popover):
         popover.popdown()
         try:
             Popen([os.path.join(_curr_dir,"open_terminal.sh"), DESKTOP_PATH])
+        except Exception as E:
+            itemWindow(self, MWERROR, str(E))
+        
+    def on_refresh_all(self, btn, popover):
+        popover.popdown()
+        try:
+            for el in self.WIDGET_LIST:
+                el.queue_draw()
         except Exception as E:
             itemWindow(self, MWERROR, str(E))
         
@@ -3210,6 +3254,13 @@ class MainWindow(Gtk.ApplicationWindow):
             itemWindow(self, MWERROR, str(E))
         #
         self.item_positioning()
+        
+    def on_clean_thumb(self, btn, popover):
+        popover.popdown()
+        try:
+            delete_thumb(XDG_CACHE_LARGE)
+        except Exception as E:
+            itemWindow(self, MWERROR, str(E))
         
     def on_draw(self, da, cr, w, h, data):
         pass

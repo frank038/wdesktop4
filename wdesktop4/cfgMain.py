@@ -1,5 +1,7 @@
 # use the layershell protocol: 1 yes - 0 no
 USE_LAYERSHELL = 1
+# wayland layer: 0 bottom - 1 background
+LAYER_PLACEMENT = 1
 # reduce the width of the window (useful for vertical panels with exclusive zones)
 SCREEN_SHRINK_W = 0
 # reduce the height of the window (useful for horizontal panels with exclusive zones)
@@ -73,3 +75,7 @@ BACKGROUND_COLOR = "#777777"
 FOLDER_MERGE = 1
 # button label alignment: 0 left - 1 right
 BUTTON_LABEL_ALIGN=0
+# maximum number of icons to show while dragging: 0 all - or number
+THUMB_DRAG_MAX = 0
+# size of the icons while dragging: pixels
+THUMB_DRAG_ICON_SIZE = 32
