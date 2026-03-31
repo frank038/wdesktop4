@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# V. 0.6
+# V. 0.8
 
 from cfgMain import *
 from cfglang import *
@@ -18,6 +18,7 @@ gi.require_version('Gdk', '4.0')
 from gi.repository import Gtk, GLib, Gdk, Graphene, Gsk, Gio, Pango, GObject
 from subprocess import Popen
 import datetime
+from math import sqrt, ceil
 
 
 def _error_log(msg):
@@ -857,14 +858,12 @@ class customItem(Gtk.Widget):
             tpady = 0
             if texture_w > texture_h:
                 t_rx = texture_h/texture_w
-                if t_rx < 1:
-                    new_iw = self._iw/t_rx
-                    tpady = 0
+                new_iw = self._iw/t_rx
+                tpady = 0
             elif texture_w < texture_h:
                 t_ry = texture_w/texture_h
-                if t_ry < 1:
-                    new_iw = self._iw*t_ry
-                    tpady = 0
+                new_iw = self._iw*t_ry
+                tpady = 0
             # ICON rect
             size_rect = Graphene.Rect()
             # 1 - icon
@@ -1077,7 +1076,7 @@ class customItem(Gtk.Widget):
     # def do_measure(self, orientation, for_size):
         # return self._w, self._w, -1, -1
        
-        
+
 class itemWindow(Gtk.Window):
     def __init__(self, _parent, _msg1, _msg2):
         super().__init__()
@@ -1638,10 +1637,11 @@ class MainWindow(Gtk.ApplicationWindow):
         #
         ## main - dragging
         self.dragging_prepare = 0
+        self.drag_begin = 0
         drag_controller = Gtk.DragSource()
         drag_controller.connect("prepare", self.on_drag_prepare)
         drag_controller.connect("drag-begin", self.on_drag_begin)
-        # drag_controller.connect("drag-end", self.on_drag_end)
+        drag_controller.connect("drag-end", self.on_drag_end)
         self.add_controller(drag_controller)
         # drop
         self.drop_controller = Gtk.DropTarget.new(type=GObject.TYPE_NONE, actions=Gdk.DragAction.COPY)
@@ -2100,6 +2100,9 @@ class MainWindow(Gtk.ApplicationWindow):
             return
         
         if len(self.selection_widget_found) > 0:
+            # if len(self.selection_widget_found) == 1:
+                # _texture = self.selection_widget_found[0]._texture
+                # ctrl.set_icon(_texture, 0, 0)
             _data = ""
             for el in self.selection_widget_found:
                 file_path_tmp = os.path.join(DESKTOP_PATH,el._itext)
@@ -2121,23 +2124,115 @@ class MainWindow(Gtk.ApplicationWindow):
             return content
             
     def on_drag_begin(self, ctrl, drag):
-        # icon = Gtk.WidgetPaintable.new(self)
-        # ctrl.set_icon(icon, 0, 0)
-        # THUMB_DRAG_ICON_SIZE
-        # if THUMB_DRAG_MAX == 0:
-            # pass
-        # elif THUMB_DRAG_MAX > 0:
-            # pass
-        pass
+        self.drag_begin = 1
+        _len_selection = len(self.selection_widget_found)
+        try:
+            
+            if _len_selection > 1:
+                _num_rows = round(sqrt(_len_selection))
+                _num_columns = ceil(_len_selection/_num_rows)
+                snapshot = Gtk.Snapshot.new()
+                gx = 0
+                gy = 0
+                gw = THUMB_DRAG_ICON_SIZE
+                gh = THUMB_DRAG_ICON_SIZE
+                items = 0
+                for item in self.selection_widget_found:
+                    items += 1
+                    
+                    _texture = item._texture
+                    texture_w = _texture.get_width()
+                    texture_h = _texture.get_height()
+                    
+                    tpadx = 0
+                    tpady = 0
+                    t_rx = 1
+                    t_ry = 1
+                    
+                    if texture_w > texture_h:
+                        t_rx = texture_w/texture_h
+                        gw = gw/t_rx
+                        if texture_w >= THUMB_DRAG_ICON_SIZE:
+                            tpady = int( ((texture_w-texture_h)/2) / (texture_w/THUMB_DRAG_ICON_SIZE) )
+                        else:
+                            tpady = int( ((texture_w-texture_h)/2) / (THUMB_DRAG_ICON_SIZE/texture_w) )
+                        
+                    elif texture_w < texture_h:
+                        t_ry = texture_h/texture_w
+                        gw = gw*t_ry
+                        if texture_h >= THUMB_DRAG_ICON_SIZE:
+                            tpadx = int( ((texture_h-texture_w)/2) / (texture_h/THUMB_DRAG_ICON_SIZE) )
+                        else:
+                            tpadx = int( ((texture_h-texture_w)/2) / (THUMB_DRAG_ICON_SIZE/texture_h) )
+                        
+                    _bounds = Graphene.Rect.alloc()
+                    _bounds.init(gx+tpadx, gy+tpady, THUMB_DRAG_ICON_SIZE-tpadx*2, THUMB_DRAG_ICON_SIZE-tpady*2)
+                    snapshot.append_scaled_texture(_texture, 0, _bounds)
+                    
+                    if items < _num_columns:
+                        gx += THUMB_DRAG_ICON_SIZE
+                    else:
+                        gx = 0
+                        gy += THUMB_DRAG_ICON_SIZE
+                        items = 0
+                    # del _bounds
+                
+                size_size = Graphene.Size()
+                size_size.init(THUMB_DRAG_ICON_SIZE*_num_columns, THUMB_DRAG_ICON_SIZE*_num_rows)
+                paintable = snapshot.to_paintable(size_size)
+                ctrl.set_icon(paintable, 0, 0)
+                
+            elif _len_selection == 1:
+                _texture = self.selection_widget_found[0]._texture
+                size_rect = Graphene.Rect()
+                gx = 0
+                gy = 0
+                texture_w = _texture.get_width()
+                texture_h = _texture.get_height()
+                #
+                gw = THUMB_DRAG_ICON_SIZE
+                gh = THUMB_DRAG_ICON_SIZE
+                if texture_w > texture_h:
+                    t_rx = texture_h/texture_w
+                    gw = gw/t_rx
+                elif texture_w < texture_h:
+                    t_ry = texture_w/texture_h
+                    gw = gw*t_ry
+                
+                size_rect.init(gx, gy, gw, gh)
+                snapshot = Gtk.Snapshot.new()
+                snapshot.append_scaled_texture(_texture, Gsk.ScalingFilter.NEAREST, size_rect)
+                size_size = Graphene.Size()
+                size_size.init(gw, gh)
+                paintable = snapshot.to_paintable(size_size)
+                ctrl.set_icon(paintable, 0, 0)
+        
+        except Exception as E:
+            itemWindow(self, MWERROR, str(E))
     
-    # def on_drag_end(self, ctrl, drag, data=None):
-        # pass
+    def on_drag_end(self, ctrl, drag, data=None):
+        self.isDragging = 0
+        self.dragging_prepare = 0
+        self.drag_begin = 0
     
     def on_drop(self, ctrl, value, _x, _y):
+        # external item moving
+        if self.drag_begin == 0:
+            # deselect all
+            if len(self.selection_widget_found) > 0:
+                for el in self.selection_widget_found:
+                    el._v = 0
+                    el._state = 0
+                    el.queue_draw()
+                self.selection_widget_found = []
+                self.dragging_prepare = 0
+        #
+        self.drag_begin = 0
         # supposing internal item moving
         if len(self.selection_widget_found) > 0 and self.dragging_prepare == 1:
             # only one item
             if len(self.selection_widget_found) > 1:
+                self.dragging_prepare = 0
                 return
             #
             i = 0
@@ -2170,7 +2265,7 @@ class MainWindow(Gtk.ApplicationWindow):
             #
             self.dragging_prepare = 0
             return
-        #
+        
         _operation = ""
         if  ctrl.get_actions() == Gdk.DragAction.COPY:
             _operation = "copy"
@@ -2486,13 +2581,21 @@ class MainWindow(Gtk.ApplicationWindow):
         elif event == Gio.FileMonitorEvent.CREATED or event == Gio.FileMonitorEvent.MOVED_IN:
             item = os.path.basename(_file1.get_path())
             _tr, _tc = self.find_item_new_pos()
+            _type = "file"
+            #
+            _file = Gio.File.new_for_path(os.path.join(DESKTOP_PATH, item))
+            _file_info = _file.query_info("standard::*,owner::user", Gio.FileQueryInfoFlags.NONE,None)
+            _mime = _file_info.get_content_type()
+            if _mime == "application/x-desktop":
+                _type = "desktop"
+            #
             # print(" ")
             if _tr == -1 and _tc == -1:
-                custom = self.on_populate_items(-1, -1, -1, -1, item, "file")
+                custom = self.on_populate_items(-1, -1, -1, -1, item, _type)
                 self.WIDGET_TO_FUTURE_PLACE.append(custom)
             else:
                 _tx, _ty = self.convert_pos_to_px(_tr,_tc)
-                self.populate_items(_tx,_ty, _tr, _tc, item, "file")
+                self.populate_items(_tx,_ty, _tr, _tc, item, _type)
             self.rebuild_file_item_pos = 1
             
         elif event == Gio.FileMonitorEvent.RENAMED:
@@ -3325,7 +3428,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.isDragging = 1
         self.rubberband = myRubberBand(self)
         self._fixed.put(self.rubberband, self.start_x, self.start_y)
-        
+    
     # drag update
     def on_da_gesture_d_u(self, gesture_drag, offset_x, offset_y, da):
         if abs(offset_x) > 4:
@@ -3337,21 +3440,20 @@ class MainWindow(Gtk.ApplicationWindow):
             
             if offset_x >= 0:
                 _x1 = self.start_x
-                _x2 = self.start_x + offset_x
+                _x2 = offset_x
             else:
                 _x1 = self.start_x+offset_x
-                _x2 = self.start_x
+                _x2 = abs(offset_x)
                 
             if offset_y >= 0:
                 _y1 = self.start_y
-                _y2 = self.start_y+offset_y
+                _y2 = offset_y
             else:
                 _y1 = self.start_y+offset_y
-                _y2 = self.start_y
+                _y2 = abs(offset_y)
             
-            sel_rect = Graphene.Rect()
+            sel_rect = Graphene.Rect.alloc()
             sel_rect.init(_x1, _y1, _x2, _y2)
-            
             # select or deselect the items
             for _wdg in self.WIDGET_LIST:
                 # # skip the trashcan
@@ -3367,10 +3469,8 @@ class MainWindow(Gtk.ApplicationWindow):
                 _y = _wdg.y+int(ITEM_MARGIN_V/2)
                 _w = _wdg._w-ITEM_MARGIN
                 _h = _wdg._h-ITEM_MARGIN_V
-                _xx = _x+_w
-                _yy = _y+_h
                 # 
-                _rect = Graphene.Rect()
+                _rect = Graphene.Rect.alloc()
                 _rect.init(_x, _y, _w, _h)
                 
                 res = sel_rect.intersection(_rect)
