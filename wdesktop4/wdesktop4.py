@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-# V. 0.8
+# V. 0.8.1
 
 from cfgMain import *
 from cfglang import *
 
-import sys, os, shutil, signal
+import sys, os, shutil, signal, locale
 import gi
 if USE_LAYERSHELL == 1:
     try:
@@ -523,7 +523,7 @@ class customItem(Gtk.Widget):
             self._comment = ""
             self._exec = ""
             self.on_set_desktop_entries()
-        
+            
         # 0 inactive - 1 active mouse over - 2 active mouse selected
         self._v = 0
         self._snapshot = None
@@ -566,18 +566,26 @@ class customItem(Gtk.Widget):
         _f.close()
         _file_content = _file_tmp.split("\n")
         #
+        _locale_all = locale.getlocale()
+        _locale = _locale_all[0].split("_")[0]
+        #
         for el in _file_content:
             if self._name != "" and self._comment != "" and self._icon != "" and self._exec != "":
                 break
             entry = el.split("=")
-            if "name" in entry[0].lower():
+            if "Name[{}]".format(_locale) == entry[0]:# or "Name[{}]".format(_locale_all[0]) == entry[0]:
                 self._name = "=".join(entry[1:])
-            elif "commen" in entry[0].lower():
+            elif self._name == "" and "name" in entry[0].lower():
+                self._name = "=".join(entry[1:])
+            elif "Comment[{}]".format(_locale) == entry[0]:# or "Comment[{}]".format(_locale_all[0]) == entry[0]:
+                self._comment = "=".join(entry[1:])
+            elif self._comment == "" and "comment" in entry[0].lower():
                 self._comment = "=".join(entry[1:])
             elif "icon" in entry[0].lower():
                 self._icon = "=".join(entry[1:])
             elif "exec" in entry[0].lower():
                 self._exec = "=".join(entry[1:])
+        
         if self._exec == "":
             self._type = "file"
             self._name = ""
@@ -796,8 +804,10 @@ class customItem(Gtk.Widget):
         if USE_THUMBS == 1:
             if self._type == "file":
                 ret = self.find_icon_thumb(icon_mime)
-            elif self._type == "desktop":
-                ret = self.find_icon_desktop()
+            # el
+        if self._type == "desktop":
+            ret = self.find_icon_desktop()
+        #
         if ret == None:
             display = Gdk.Display.get_default()
             icon_theme = Gtk.IconTheme.get_for_display(display)
@@ -830,10 +840,33 @@ class customItem(Gtk.Widget):
             texture = Gdk.Texture.new_from_filename(icon_file_path)
             self._texture = texture
         else:
-            icon_file_path = ret
-            texture = Gdk.Texture.new_from_filename(icon_file_path)
-            self._ci = 1 # custom icon
-            self._texture = texture
+            if self._type == "desktop":
+                display = Gdk.Display.get_default()
+                icon_theme = Gtk.IconTheme.get_for_display(display)
+                if icon_theme.has_icon(ret):
+                    icon_paintable = icon_theme.lookup_icon(
+                        ret,
+                        None, 
+                        self._iw,
+                        1,
+                        Gtk.TextDirection.NONE,
+                        Gtk.IconLookupFlags.NONE
+                        )
+                    #
+                    icon_file_path = icon_paintable.get_file().get_path()
+                    texture = Gdk.Texture.new_from_filename(icon_file_path)
+                    self._ci = 1 # custom icon
+                    self._texture = texture
+                else:
+                    icon_file_path = os.path.join(_curr_dir, "icons", "icon.svg")
+                    texture = Gdk.Texture.new_from_filename(icon_file_path)
+                    self._ci = 1 # custom icon
+                    self._texture = texture
+            else:
+                icon_file_path = os.path.join(_curr_dir, "icons", "icon.svg")
+                texture = Gdk.Texture.new_from_filename(icon_file_path)
+                self._ci = 1 # custom icon
+                self._texture = texture
         #
         texture_w = texture.get_width()
         texture_h = texture.get_height()
@@ -2216,6 +2249,19 @@ class MainWindow(Gtk.ApplicationWindow):
         self.drag_begin = 0
     
     def on_drop(self, ctrl, value, _x, _y):
+        # from wbar or also unsupported others
+        if self.drag_begin == 0 and self.dragging_prepare == 0 and not isinstance(value, Gdk.FileList):
+            _file_path = value
+            _file = Gio.File.new_for_path(_file_path)
+            _file_info = _file.query_info("standard::*,owner::user", Gio.FileQueryInfoFlags.NONE,None)
+            _mime = _file_info.get_content_type()
+            if _mime == "application/x-desktop":
+                try:
+                    _dest_path = os.path.join(DESKTOP_PATH, os.path.basename(_file_path))
+                    shutil.copy2(_file_path, _dest_path)
+                except Exception as E:
+                    itemWindow(self, MWERROR, str(E))
+            return
         # external item moving
         if self.drag_begin == 0:
             # deselect all
