@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# V. 0.8.1
+# V. 0.8.2
 
 from cfgMain import *
 from cfglang import *
@@ -2123,8 +2123,9 @@ class MainWindow(Gtk.ApplicationWindow):
     
     def on_icon_theme_changed(self, icontheme):
         for el in self.WIDGET_LIST:
-            if el._ci == 1:
+            if el._ci == 0:
                 el.queue_draw()
+                
     
     def on_drag_prepare(self, ctrl, _x, _y, data=None):
         self.dragging_prepare = 1
