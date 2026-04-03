@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# V. 0.8.2
+# V. 0.8.5
 
 from cfgMain import *
 from cfglang import *
@@ -513,7 +513,7 @@ class customItem(Gtk.Widget):
         ####################
         self._file_path = os.path.join(DESKTOP_PATH, self._itext)
         self._file = Gio.File.new_for_path(self._file_path)
-        self._file_info = self._file.query_info("standard::*,owner::user", Gio.FileQueryInfoFlags.NONE,None)
+        # self._file_info = self._file.query_info("standard::*,owner::user", Gio.FileQueryInfoFlags.NONE,None)
         #
         self.is_link = os.path.islink(self._file_path)
         #
@@ -686,6 +686,7 @@ class customItem(Gtk.Widget):
     def on_open_file(self, btn=None, popover=None):
         if popover != None:
             popover.popdown()
+        self._file_info = self._file.query_info("standard::*,owner::user", Gio.FileQueryInfoFlags.NONE,None)
         _mime = self._file_info.get_content_type()
         _app = Gio.AppInfo.get_default_for_type(_mime, False)
         _app.launch([self._file], None)
@@ -800,6 +801,7 @@ class customItem(Gtk.Widget):
             self._snapshot = _obj
         ######## ICON
         ret = None
+        self._file_info = self._file.query_info("standard::*,owner::user", Gio.FileQueryInfoFlags.NONE,None)
         icon_mime = self._file_info.get_content_type()
         if USE_THUMBS == 1:
             if self._type == "file":
@@ -808,11 +810,13 @@ class customItem(Gtk.Widget):
         if self._type == "desktop":
             ret = self.find_icon_desktop()
         #
+        # no custom icon
         if ret == None:
             display = Gdk.Display.get_default()
             icon_theme = Gtk.IconTheme.get_for_display(display)
             # Returns a GtkIconPaintable
             icon_names = Gio.content_type_get_icon(icon_mime).get_names()
+            icon_paintable = None
             for _ic in icon_names:
                 if icon_theme.has_icon(_ic):
                     icon_paintable = icon_theme.lookup_icon(
@@ -824,7 +828,8 @@ class customItem(Gtk.Widget):
                         Gtk.IconLookupFlags.NONE
                         )
                     break
-            else:
+            
+            if icon_paintable == None:
                 icon_paintable = icon_theme.lookup_icon(
                     'application-x-zerosize',
                     None, 
@@ -834,13 +839,18 @@ class customItem(Gtk.Widget):
                     Gtk.IconLookupFlags.NONE
                     )
             
-            icon_file_path = icon_paintable.get_file().get_path()
+            if icon_paintable != None:
+                icon_file_path = icon_paintable.get_file().get_path()
+                
             if not os.path.exists(icon_file_path):
                 icon_file_path = os.path.join(_curr_dir, "icons", "icon.svg")
+            
             texture = Gdk.Texture.new_from_filename(icon_file_path)
             self._texture = texture
+        # custom icon
         else:
             if self._type == "desktop":
+                # icon theme
                 display = Gdk.Display.get_default()
                 icon_theme = Gtk.IconTheme.get_for_display(display)
                 if icon_theme.has_icon(ret):
@@ -857,16 +867,30 @@ class customItem(Gtk.Widget):
                     texture = Gdk.Texture.new_from_filename(icon_file_path)
                     self._ci = 1 # custom icon
                     self._texture = texture
+                # file name
+                elif os.path.exists(ret):
+                    texture = Gdk.Texture.new_from_filename(ret)
+                    self._ci = 1 # custom icon
+                    self._texture = texture
+                # generic icon
                 else:
                     icon_file_path = os.path.join(_curr_dir, "icons", "icon.svg")
                     texture = Gdk.Texture.new_from_filename(icon_file_path)
                     self._ci = 1 # custom icon
                     self._texture = texture
+            # type file
             else:
-                icon_file_path = os.path.join(_curr_dir, "icons", "icon.svg")
-                texture = Gdk.Texture.new_from_filename(icon_file_path)
-                self._ci = 1 # custom icon
-                self._texture = texture
+                # file name
+                if os.path.exists(ret):
+                    texture = Gdk.Texture.new_from_filename(ret)
+                    self._ci = 1 # custom icon
+                    self._texture = texture
+                # generic icon
+                else:
+                    icon_file_path = os.path.join(_curr_dir, "icons", "icon.svg")
+                    texture = Gdk.Texture.new_from_filename(icon_file_path)
+                    self._ci = 1 # custom icon
+                    self._texture = texture
         #
         texture_w = texture.get_width()
         texture_h = texture.get_height()
@@ -2588,8 +2612,8 @@ class MainWindow(Gtk.ApplicationWindow):
                     el.queue_draw()
                     break
         elif event == Gio.FileMonitorEvent.CHANGES_DONE_HINT:
-            if USE_THUMBS == 0:
-                return
+            # if USE_THUMBS == 0:
+                # return
             item = os.path.basename(_file1.get_path())
             for el in self.WIDGET_LIST[:]:
                 if el._itext == item:
@@ -2597,7 +2621,8 @@ class MainWindow(Gtk.ApplicationWindow):
                         el.on_set_desktop_entries()
                         el.queue_draw()
                         break
-                    elif el._ci == 1:
+                    # elif el._ci == 1:
+                    else:
                         el.queue_draw()
                         break
         elif event == Gio.FileMonitorEvent.DELETED or event == Gio.FileMonitorEvent.MOVED_OUT:
