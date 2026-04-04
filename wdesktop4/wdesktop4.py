@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# V. 0.8.5
+# V. 0.8.6
 
 from cfgMain import *
 from cfglang import *
@@ -809,7 +809,20 @@ class customItem(Gtk.Widget):
             # el
         if self._type == "desktop":
             ret = self.find_icon_desktop()
-        #
+        # folder custom icon
+        if icon_mime == "inode/directory":
+            _desktop_file_path = os.path.join(DESKTOP_PATH, self._itext, ".directory")
+            if os.path.exists(_desktop_file_path):
+                try:
+                    with open(_desktop_file_path,"r") as _f:
+                        dcontent = _f.readlines()
+                    for el in dcontent:
+                        if "Icon=" in el:
+                            _icon = el.split("=")[1].strip("\n")
+                            ret = os.path.join(DESKTOP_PATH, self._itext, _icon)
+                            break
+                except:
+                    ret = None
         # no custom icon
         if ret == None:
             display = Gdk.Display.get_default()
@@ -2344,7 +2357,6 @@ class MainWindow(Gtk.ApplicationWindow):
             _operation = "cut"
         
         if _operation == "":
-            
             return
         
         if isinstance(value, Gdk.FileList):
@@ -2464,6 +2476,7 @@ class MainWindow(Gtk.ApplicationWindow):
         _op = _data[0]
         if _op == "copy":
             try:
+                # both full path
                 file_name_src = _data[1]
                 file_name = _data[2]
                 if os.path.islink(file_name_src):
@@ -2471,7 +2484,7 @@ class MainWindow(Gtk.ApplicationWindow):
                         file_name += self.find_suffix()
                     os.symlink(file_name_src, file_name)
                 elif os.path.isdir(file_name_src) and not os.path.islink(file_name_src):
-                    if FOLDER_MERGE == 0:
+                    if FOLDER_MERGE == 0 or not os.path.exists(file_name):
                         # make a copy - do not merge
                         if os.path.exists(file_name):
                             file_name += self.find_suffix()
