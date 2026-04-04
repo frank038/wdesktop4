@@ -29,6 +29,7 @@ Features:
 - easy creation of more thumbnailers
 - desktop files support (programs)
 - supports the command line arguments trash:// (the recycle bin) and media://DEVICE (mass storage devices) of my file manager SimpleFM6
-- applications can be dropped from the menu of my wbar4.
+- applications can be dropped from the menu of my wbar4
+- folder custom icon support.
 
 Do not support multi monitors. May have some unknown issues.
