@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# V. 0.8.6
+# V. 0.8.7
 
 from cfgMain import *
 from cfglang import *
@@ -801,6 +801,8 @@ class customItem(Gtk.Widget):
             self._snapshot = _obj
         ######## ICON
         ret = None
+        self._file_path = os.path.join(DESKTOP_PATH, self._itext)
+        self._file = Gio.File.new_for_path(self._file_path)
         self._file_info = self._file.query_info("standard::*,owner::user", Gio.FileQueryInfoFlags.NONE,None)
         icon_mime = self._file_info.get_content_type()
         if USE_THUMBS == 1:
