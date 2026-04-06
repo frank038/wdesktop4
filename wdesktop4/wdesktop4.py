@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# V. 0.8.7
+# V. 0.8.8
 
 from cfgMain import *
 from cfglang import *
@@ -1059,8 +1059,17 @@ class customItem(Gtk.Widget):
         #
         for _c in self._itext[1:]:
             tmp_text += _c
-            layout.set_text(tmp_text)
-            #
+            ##### previous split at char
+            # layout.set_text(tmp_text)
+            ##### split text at space
+            if _c == " ":
+                new_text += tmp_text[:-1]+"\n"
+                tmp_text = ""
+                _lines += 1
+                continue
+            else:
+                layout.set_text(tmp_text)
+            #####
             if layout.get_pixel_size().width > (self._w-ITEM_MARGIN*2):
                 new_text += tmp_text[:-1]+"\n"
                 tmp_text = tmp_text[-1]
@@ -1077,12 +1086,24 @@ class customItem(Gtk.Widget):
         elif _lines > (NUMBER_OF_TEXT_LINES-1) and (self._state == 0 and self._v == 0):
             new_text_tmp = new_text.split("\n")
             new_text = ""
-            i = 0
-            while i < (NUMBER_OF_TEXT_LINES-1):
-                new_text += (new_text_tmp[i]+"\n")
-                i += 1
-            else:
-                new_text += new_text_tmp[i][:-3]+"..."
+            ######## previous split at char
+            # i = 0
+            # while i < (NUMBER_OF_TEXT_LINES-1):
+                # new_text += (new_text_tmp[i]+"\n")
+                # i += 1
+            # else:
+                # new_text += new_text_tmp[i][:-3]+"..."
+            #### split text at space
+            new_text = "\n".join(new_text_tmp[0:NUMBER_OF_TEXT_LINES-1])
+            _text_tmp = new_text_tmp[NUMBER_OF_TEXT_LINES-1]
+            layout.set_text(_text_tmp+"...")
+            _text_lenght = layout.get_pixel_size().width
+            while _text_lenght > (self._w-ITEM_MARGIN*2):
+                _text_tmp = _text_tmp[:-1]
+                layout.set_text(_text_tmp+"...")
+                _text_lenght = layout.get_pixel_size().width
+            new_text += "\n"+_text_tmp+"..."
+            ####
         elif tmp_text != "":
             new_text += tmp_text
         else:
