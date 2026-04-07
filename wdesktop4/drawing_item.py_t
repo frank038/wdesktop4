@@ -1,0 +1,28 @@
+
+import requests
+
+# refreshing interval: seconds
+DRAWINGITEMINTERVAL = 10
+
+def drawingItem(da, cr, w, h, data):
+    # weather = requests.get('https://wttr.in/?format="%c:+%t+%w"').content.decode('utf-8')
+    weather = "☀️  : +18°C ↓10km/h"
+    cr.set_source_rgba(0.7, 0.7, 0.7, 0.8)
+    _w = 600
+    _h = 200
+    _x = int((w-_w)/2)
+    _y = int((h-_h)/2)
+    cr.rectangle(_x,_y,_w,_h)
+    cr.fill()
+    #
+    cr.set_source_rgba(0.0, 0.0, 0.0, 1)
+    cr.scale(4, 4)
+    x = 180
+    y = 130
+    cr.move_to(x, y)
+    cr.show_text(weather)
+    #
+    # img = cairo.ImageSurface.create_from_png("image.png")
+    # cr.set_source_surface(img, 10, 10)
+    # cr.paint()
+    

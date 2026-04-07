@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# V. 0.8.8
+# V. 0.8.9
 
 from cfgMain import *
 from cfglang import *
@@ -20,6 +20,17 @@ from subprocess import Popen
 import datetime
 from math import sqrt, ceil
 
+USER_DRAWING_ITEM = 0
+drawingItemF = None
+DRAWINGITEMINTERVAL = 0
+da_timer = None
+try:
+    from drawing_item import drawingItem, DRAWINGITEMINTERVAL
+    drawingItemF = drawingItem
+    DRAWINGITEMINTERVAL = DRAWINGITEMINTERVAL
+    USER_DRAWING_ITEM = 1
+except:
+    USER_DRAWING_ITEM = 0
 
 def _error_log(msg):
     print(msg)
@@ -999,7 +1010,7 @@ class customItem(Gtk.Widget):
             sel_rect.init(sgx,sgy,EMBLEM_SIZE,EMBLEM_SIZE)
             #
             g_rounded_r = Gsk.RoundedRect()
-            g_rounded_r.init_from_rect(sel_rect, 20)
+            g_rounded_r.init_from_rect(sel_rect, int(EMBLEM_SIZE/2)) # , 20)
             g_rounded_r.normalize()
             _obj.push_rounded_clip(g_rounded_r)
             _obj.append_color(_acg, sel_rect)
@@ -1674,7 +1685,10 @@ class MainWindow(Gtk.ApplicationWindow):
         #
         self.da.set_hexpand(False)
         self.da.set_vexpand(False)
-        self.da.set_draw_func(self.on_draw, None)
+        if USER_DRAWING_ITEM == 1:
+            self.da.set_draw_func(self.on_draw, None)
+            global da_timer
+            da_timer = GLib.timeout_add_seconds(DRAWINGITEMINTERVAL, self.on_da_draw)
         #
         css += css_da
         self.css_provider.load_from_data(css.encode('utf-8'))
@@ -1775,7 +1789,6 @@ class MainWindow(Gtk.ApplicationWindow):
             gtrash = Gio.File.new_for_path(TRASH_PATH)
             self.monitor_trash = gtrash.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, None)
             self.monitor_trash.connect("changed", self.on_trash_changed)
-    
     
     def item_positioning(self):
         self.WIDGET_LIST = []
@@ -3339,6 +3352,11 @@ class MainWindow(Gtk.ApplicationWindow):
         btn_replace.connect("clicked", self.on_replace_all_clicked, popover)
         popover_box.append(btn_replace)
         
+        btn_script = Gtk.Button(label=MWLOADUNLOADSCRIPT)
+        self.align_label(btn_script)
+        btn_script.connect("clicked", self.on_load_script, popover)
+        popover_box.append(btn_script)
+        
         btn_clean_thumb = Gtk.Button(label=MWCLEANTHUMB)
         self.align_label(btn_clean_thumb)
         btn_clean_thumb.connect("clicked", self.on_clean_thumb, popover)
@@ -3452,6 +3470,53 @@ class MainWindow(Gtk.ApplicationWindow):
         except Exception as E:
             itemWindow(self, MWERROR, str(E))
         
+    def on_load_script(self, btn, popover):
+        popover.popdown()
+        #
+        global USER_DRAWING_ITEM
+        global DRAWINGITEMINTERVAL
+        global drawingItemF
+        global da_timer
+        #
+        if os.path.exists(os.path.join(_curr_dir, "drawing_item.py_t")):
+            #
+            if USER_DRAWING_ITEM == 1:
+                return
+            try:
+                os.rename(os.path.join(_curr_dir, "drawing_item.py_t"), os.path.join(_curr_dir, "drawing_item.py"))
+            except exception as E:
+                itemWindow(self, MWERROR, str(E))
+                return
+            #
+            try:
+                from drawing_item import drawingItem, DRAWINGITEMINTERVAL
+                drawingItemF = drawingItem
+                DRAWINGITEMINTERVAL = DRAWINGITEMINTERVAL
+                USER_DRAWING_ITEM = 1
+                self.da.set_draw_func(self.on_draw, None)
+                da_timer = GLib.timeout_add_seconds(DRAWINGITEMINTERVAL, self.on_da_draw)
+            except Exception as E:
+                USER_DRAWING_ITEM = 0
+                drawingItemF = None
+                DRAWINGITEMINTERVAL = 0
+                itemWindow(self, MWERROR, str(E))
+        #
+        else:
+            try:
+                os.rename(os.path.join(_curr_dir, "drawing_item.py"), os.path.join(_curr_dir, "drawing_item.py_t"))
+            except Exception as E:
+                itemWindow(self, MWERROR, str(E))
+                return
+            try:
+                USER_DRAWING_ITEM = 0
+                drawingItemF = None
+                DRAWINGITEMINTERVAL = 0
+                GLib.source_remove(da_timer)
+                self.da.queue_draw()
+            except Exception as E:
+                itemWindow(self, MWERROR, str(E))
+            
+        
     def on_replace_all_clicked(self, btn, popover):
         popover.popdown()
         try:
@@ -3473,9 +3538,14 @@ class MainWindow(Gtk.ApplicationWindow):
         except Exception as E:
             itemWindow(self, MWERROR, str(E))
         
-    def on_draw(self, da, cr, w, h, data):
-        pass
+    def on_da_draw(self):
+        self.da.queue_draw()
+        return True
     
+    def on_draw(self, da, cr, w, h, data):
+        if USER_DRAWING_ITEM == 1:
+            drawingItemF(da, cr, w, h, data)
+        
     def on_draw2(self, da, cr, w, h, data):
         if self.left_click_setted == 1:
             w = self.end_x
