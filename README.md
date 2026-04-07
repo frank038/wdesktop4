@@ -30,6 +30,7 @@ Features:
 - desktop files support (programs)
 - supports the command line arguments trash:// (the recycle bin) and media://DEVICE (mass storage devices) of my file manager SimpleFM6
 - applications can be dropped from the menu of my wbar4
-- folder custom icon support.
+- folder custom icon support
+- can load a custom script to render something in the background using cairo; a sample script is provided; enable or disable it with the center mouse button.
 
 Do not support multi monitors. May have some unknown issues.
