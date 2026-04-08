@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# V. 0.8.9
+# V. 0.9
 
 from cfgMain import *
 from cfglang import *
@@ -1067,7 +1067,6 @@ class customItem(Gtk.Widget):
         new_text = ""
         tmp_text = self._itext[0]
         _lines = 1
-        #
         for _c in self._itext[1:]:
             tmp_text += _c
             ##### previous split at char
@@ -1156,9 +1155,11 @@ class customItem(Gtk.Widget):
         #### item name
         # starting height
         _text_height = 0
+        if new_text == "":
+            new_text = "(no name)"
         list_text = new_text.split("\n")
         for _t in list_text:
-            if _t[-1] == " ":
+            if _t and _t[-1] == " ":
                 _t = _t[:-1]
             layout.set_text(_t)
             text_width = layout.get_pixel_size().width
@@ -3331,6 +3332,7 @@ class MainWindow(Gtk.ApplicationWindow):
             if (old_text, _item.r, _item.c) in self.WIDGET_LIST_PATH_POS[:]:
                 self.WIDGET_LIST_PATH_POS.remove((old_text, _item.r, _item.c))
                 self.WIDGET_LIST_PATH_POS.append((_text, _item.r, _item.c))
+                _item.queue_draw()
             popover.popdown()
     
     def background_context_menu_center(self, _item, _x, _y):
