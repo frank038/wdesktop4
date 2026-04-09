@@ -1,0 +1,20 @@
+.wnotes {
+background-color: #000000;
+border: 2px solid #888888;
+border-radius: 8px;
+padding: 10px;
+}
+
+.wnotes textview.view {
+background-color: #000000;
+color: #ffffff;
+}
+/*
+.wnotes button {
+background: #444444;
+color: #cccccc;
+}
+
+.wnotes button::hover {
+color: #ffffff;
+}*/

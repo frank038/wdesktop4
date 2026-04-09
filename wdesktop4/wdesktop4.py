@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# V. 0.9
+# V. 1.0
 
 from cfgMain import *
 from cfglang import *
@@ -19,6 +19,17 @@ from gi.repository import Gtk, GLib, Gdk, Graphene, Gsk, Gio, Pango, GObject
 from subprocess import Popen
 import datetime
 from math import sqrt, ceil
+import importlib
+
+_curr_dir = os.getcwd()
+_HOME = os.path.expanduser("~")
+
+def _error_log(msg):
+    print(msg)
+
+_display = Gdk.Display.get_default()
+display_type = GObject.type_name(_display.__gtype__)
+
 
 USER_DRAWING_ITEM = 0
 drawingItemF = None
@@ -32,11 +43,33 @@ try:
 except:
     USER_DRAWING_ITEM = 0
 
-def _error_log(msg):
-    print(msg)
+# the dialog for the widgets
+POPOVER_WIDGET_SIZE = 300
+list_widgets = []
 
-_display = Gdk.Display.get_default()
-display_type = GObject.type_name(_display.__gtype__)
+def import_from_path(module_name, file_path):
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+def load_desktop_widgets():
+    global list_widgets
+    list_widgets = []
+    mmod_custom = []
+    if os.path.exists(os.path.join(_curr_dir, "widgets")):
+        mmod_custom = os.listdir(os.path.join(_curr_dir, "widgets"))
+    if os.path.exists(os.path.join(_curr_dir, "widgets")):
+        for el in mmod_custom:
+            try:
+                file_path = os.path.join(_curr_dir, "widgets", el, "widget_custom.py")
+                _module = import_from_path("customWidget", file_path)
+                list_widgets.append(_module)
+            except:
+                pass
+load_desktop_widgets()
+
 
 if USE_LAYERSHELL == 1:
     is_wayland = display_type=="GdkWaylandDisplay"
@@ -49,9 +82,7 @@ if USE_LAYERSHELL == 1:
             _error_log("Gtk layer shell support required.")
             USE_LAYERSHELL = 0
 
-_curr_dir = os.getcwd()
-_HOME = os.path.expanduser("~")
-# 
+ 
 ############### SETTINGS
 _fm = font_fm
 _font_size = font_font_size
@@ -663,7 +694,6 @@ class customItem(Gtk.Widget):
     
     def exec_file(self):
         ren_pop = Gtk.Popover.new()
-        ren_pop = Gtk.Popover()
         ren_pop.set_has_arrow(False)
         ren_pop.set_halign(Gtk.Align.START)
         ren_pop.set_parent(self._parent._fixed)
@@ -1558,8 +1588,11 @@ class MainWindow(Gtk.ApplicationWindow):
         signal.signal(signal.SIGINT, self.sigtype_handler)
         signal.signal(signal.SIGTERM, self.sigtype_handler)
         
+        self.connect("show", self.on_main_show)
         self.connect("close-request", self._to_close)
         self.connect("destroy", self._to_close)
+        
+        self.CURRENT_DIR = _curr_dir
         
         #### SETTINGS
         # widget width and height and space between items
@@ -1583,6 +1616,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self.screen_height = self._monitor.get_geometry().height-SCREEN_SHRINK_H
             #
             self.set_size_request(self.screen_width-SCREEN_SHRINK_W,self.screen_height-SCREEN_SHRINK_H)
+            self.set_resizable(False)
         else:
             sys.exit()
         #
@@ -1790,7 +1824,39 @@ class MainWindow(Gtk.ApplicationWindow):
             gtrash = Gio.File.new_for_path(TRASH_PATH)
             self.monitor_trash = gtrash.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, None)
             self.monitor_trash.connect("changed", self.on_trash_changed)
-    
+        # list of custom desktop widgets
+        self.custom_widget_list = []
+        # the desktop widget selected
+        self.is_desktop_widget = None
+        
+    def on_main_show(self, w):
+        ###### desktop widgets
+        for el in list_widgets:
+            module_path = os.path.join(_curr_dir,"widgets",el._MODULE)
+            if os.path.exists(os.path.join(module_path, "enabled")):
+                #
+                x = 0
+                y = 0
+                w = 40
+                h = 40
+                try:
+                    with open(module_path+"/locationcfg", "r") as _f:
+                        x,y,w,h = _f.read().split("\n")
+                except:
+                    x = 0
+                    y = 0
+                    w = 40
+                    h = 40
+                #
+                _w = el.customWidget(self, module_path, int(w.strip()), int(h.strip()))
+                _w.set_size_request(int(w.strip()),int(h.strip()))
+                _w._type = "widget"
+                _w._name = el._MODULE
+                #
+                self._fixed.put(_w, int(x.strip()), int(y.strip()))
+                self.custom_widget_list.append(_w)
+            
+        
     def item_positioning(self):
         self.WIDGET_LIST = []
         self.WIDGET_LIST_POS = []
@@ -2319,6 +2385,14 @@ class MainWindow(Gtk.ApplicationWindow):
             itemWindow(self, MWERROR, str(E))
     
     def on_drag_end(self, ctrl, drag, data=None):
+        # deselect the dragged item
+        if len(self.selection_widget_found) == 1:
+            item = self.selection_widget_found[0]
+            item._v = 0
+            item._state = 0
+            item.queue_draw()
+            self.selection_widget_found = []
+        #
         self.isDragging = 0
         self.dragging_prepare = 0
         self.drag_begin = 0
@@ -2326,16 +2400,19 @@ class MainWindow(Gtk.ApplicationWindow):
     def on_drop(self, ctrl, value, _x, _y):
         # from wbar or also unsupported others
         if self.drag_begin == 0 and self.dragging_prepare == 0 and not isinstance(value, Gdk.FileList):
-            _file_path = value
-            _file = Gio.File.new_for_path(_file_path)
-            _file_info = _file.query_info("standard::*,owner::user", Gio.FileQueryInfoFlags.NONE,None)
-            _mime = _file_info.get_content_type()
-            if _mime == "application/x-desktop":
-                try:
-                    _dest_path = os.path.join(DESKTOP_PATH, os.path.basename(_file_path))
-                    shutil.copy2(_file_path, _dest_path)
-                except Exception as E:
-                    itemWindow(self, MWERROR, str(E))
+            try:
+                _file_path = value
+                _file = Gio.File.new_for_path(_file_path)
+                _file_info = _file.query_info("standard::*,owner::user", Gio.FileQueryInfoFlags.NONE,None)
+                _mime = _file_info.get_content_type()
+                if _mime == "application/x-desktop":
+                    try:
+                        _dest_path = os.path.join(DESKTOP_PATH, os.path.basename(_file_path))
+                        shutil.copy2(_file_path, _dest_path)
+                    except Exception as E:
+                        itemWindow(self, MWERROR, str(E))
+            except:
+                pass
             return
         # external item moving
         if self.drag_begin == 0:
@@ -2521,7 +2598,7 @@ class MainWindow(Gtk.ApplicationWindow):
                         file_name += self.find_suffix()
                     os.symlink(file_name_src, file_name)
                 elif os.path.isdir(file_name_src) and not os.path.islink(file_name_src):
-                    if FOLDER_MERGE == 0 or not os.path.exists(file_name):
+                    if FOLDER_MERGE == 0 or not os.path.exists(file_name) or file_name_src == file_name:
                         # make a copy - do not merge
                         if os.path.exists(file_name):
                             file_name += self.find_suffix()
@@ -3101,32 +3178,37 @@ class MainWindow(Gtk.ApplicationWindow):
         outputStream.splice_async(gio_input_stream,Gio.OutputStreamSpliceFlags.CLOSE_TARGET,GLib.PRIORITY_DEFAULT,None,self.on_get_data_paste, None)
     
     def on_get_data_paste(self, obj, res, _d):
-        _data = obj.splice_finish(res)
-        _dbytes = obj.steal_as_bytes()
-        _list = _dbytes.get_data().decode("utf-8").split("\n")
-        _errors = ""
-        _operation = _list[0]
-        for _f in _list[1:]:
-            _file = Gio.File.new_for_uri(_f).get_path()
-            if os.path.dirname(_file) == DESKTOP_PATH:
-                if _operation == "cut":
-                    itemWindow(self, MWINFO, MWOPERATIONNOTPERMITTED)
-                    break
-                    return
-            if _f == "" or _f == "\x00":
-                continue
-            if _file and not os.path.exists(_file):
-                continue
-            try:
-                _f_n = os.path.basename(_file)
-                if _operation == "copy":
-                    GLib.idle_add(self.item_op, ("copy", _file, os.path.join(DESKTOP_PATH,_f_n)))
-                elif _operation == "cut":
-                    GLib.idle_add(self.item_op, ("cut", _file, os.path.join(DESKTOP_PATH,_f_n)))
-            except Exception as E:
-                _errors += str(E)+"\n"
-        if _errors != "":
-            itemWindow(self, MWERROR, _errors)
+        try:
+            _data = obj.splice_finish(res)
+            _dbytes = obj.steal_as_bytes()
+            _list = _dbytes.get_data().decode("utf-8").split("\n")
+            _errors = ""
+            _operation = _list[0]
+            for _f in _list[1:]:
+                if _f == "" or _f == "\x00":
+                    continue
+                _file = Gio.File.new_for_uri(_f).get_path()
+                if _file == None:
+                    continue
+                if os.path.dirname(_file) == DESKTOP_PATH:
+                    if _operation == "cut":
+                        itemWindow(self, MWINFO, MWOPERATIONNOTPERMITTED)
+                        break
+                        return
+                if _file and not os.path.exists(_file):
+                    continue
+                try:
+                    _f_n = os.path.basename(_file)
+                    if _operation == "copy":
+                        GLib.idle_add(self.item_op, ("copy", _file, os.path.join(DESKTOP_PATH,_f_n)))
+                    elif _operation == "cut":
+                        GLib.idle_add(self.item_op, ("cut", _file, os.path.join(DESKTOP_PATH,_f_n)))
+                except Exception as E:
+                    _errors += str(E)+"\n"
+            if _errors != "":
+                itemWindow(self, MWERROR, _errors)
+        except Exception as E:
+            itemWindow(self, MWERROR, str(E))
     
     def on_button_clicked(self, _w, _type, _item, popover, _place=None):
         if _type == "open":
@@ -3170,7 +3252,6 @@ class MainWindow(Gtk.ApplicationWindow):
             popover.popdown()
             
             ren_pop = Gtk.Popover.new()
-            ren_pop = Gtk.Popover()
             ren_pop.set_has_arrow(False)
             ren_pop.set_halign(Gtk.Align.START)
             ren_pop.set_parent(self._fixed)
@@ -3212,7 +3293,6 @@ class MainWindow(Gtk.ApplicationWindow):
             popover.popdown()
             #
             ren_pop = Gtk.Popover.new()
-            ren_pop = Gtk.Popover()
             ren_pop.set_has_arrow(False)
             ren_pop.set_halign(Gtk.Align.START)
             ren_pop.set_parent(self._fixed)
@@ -3258,7 +3338,6 @@ class MainWindow(Gtk.ApplicationWindow):
                 _f = os.path.join(DESKTOP_PATH,file_name)
                 #
                 ren_pop = Gtk.Popover.new()
-                ren_pop = Gtk.Popover()
                 ren_pop.set_has_arrow(False)
                 ren_pop.set_halign(Gtk.Align.START)
                 ren_pop.set_parent(self._fixed)
@@ -3353,6 +3432,11 @@ class MainWindow(Gtk.ApplicationWindow):
         self.align_label(btn_replace)
         btn_replace.connect("clicked", self.on_replace_all_clicked, popover)
         popover_box.append(btn_replace)
+        
+        btn_widgets = Gtk.Button(label=MWWIDGETS)
+        self.align_label(btn_widgets)
+        btn_widgets.connect("clicked", self.on_widgets, popover)
+        popover_box.append(btn_widgets)
         
         btn_script = Gtk.Button(label=MWLOADUNLOADSCRIPT)
         self.align_label(btn_script)
@@ -3472,6 +3556,115 @@ class MainWindow(Gtk.ApplicationWindow):
         except Exception as E:
             itemWindow(self, MWERROR, str(E))
         
+    def on_widgets(self, btn, popover):
+        popover.popdown()
+        # rebuild the desktop widget list
+        load_desktop_widgets()
+        # 
+        _popover = Gtk.Popover()
+        # _popover.set_autohide(True)
+        _popover.set_has_arrow(False)
+        _popover.set_halign(Gtk.Align.START)
+        _popover.set_parent(self._fixed)
+        #
+        _stack = Gtk.Stack.new()
+        _scrolled = Gtk.ScrolledWindow.new()
+        _stack.add_child(_scrolled)
+        _popover_box = Gtk.Box.new(1,0)
+        _scrolled.set_child(_popover_box)
+        _scrolled.set_min_content_width(POPOVER_WIDGET_SIZE)
+        _scrolled.set_min_content_height(POPOVER_WIDGET_SIZE)
+        _scrolled.set_max_content_width(POPOVER_WIDGET_SIZE)
+        _scrolled.set_max_content_height(POPOVER_WIDGET_SIZE)
+        #
+        for el in reversed(list_widgets):
+            wbtn = Gtk.Button(label=el._NAME)
+            _box = Gtk.Box.new(1,0)
+            _stack.add_child(_box)
+            wbtn.connect("clicked", self.on_change_stack, _stack, _box)
+            _popover_box.append(wbtn)
+            #
+            lbl_name = Gtk.Label(label="<b>"+el._NAME+"</b>")
+            lbl_name.set_use_markup(True)
+            _box.append(lbl_name)
+            #
+            lbl_desc = Gtk.Label(label=el._COMMENT)
+            _box.append(lbl_desc)
+            #
+            lbl_vers = Gtk.Label(label=el._VERSION)
+            _box.append(lbl_vers)
+            #
+            lbl_data = Gtk.Label(label=el._DATA)
+            _box.append(lbl_data)
+            #
+            btn_exec = Gtk.Button.new()
+            if not os.path.exists(os.path.join(_curr_dir,"widgets",el._MODULE,"enabled")):
+                btn_exec.set_label(MWLAUNCH)
+            else:
+                btn_exec.set_label(MWLAUNCH2)
+            _box.append(btn_exec)
+            btn_exec.connect("clicked", self.on_widget_launched, el, _popover)
+            #
+            _btn_back = Gtk.Button(label=MWBACK)
+            _box.append(_btn_back)
+            _btn_back.connect("clicked", lambda w: _stack.set_visible_child(_scrolled))
+        #
+        # _popover.set_child(_scrolled)
+        _popover.set_child(_stack)
+        #
+        _rect = Gdk.Rectangle()
+        _rect.x = int((self._fixed.get_allocated_width()-300)/2)
+        _rect.y = int((self._fixed.get_allocated_height()-300)/2)
+        _rect.width = 1
+        _rect.height = 1
+        _popover.set_pointing_to(_rect)
+        #
+        _popover.popup()
+    
+    def on_widget_launched(self, btn, item, popover):
+        popover.popdown()
+        module_path = os.path.join(_curr_dir,"widgets",item._MODULE)
+        enabled_file_path = os.path.join(module_path,"enabled")
+        if not os.path.exists(enabled_file_path):
+            try:
+                x = 0
+                y = 0
+                w = 40
+                h = 40
+                try:
+                    with open(module_path+"/locationcfg", "r") as _f:
+                        x,y,w,h = _f.read().split("\n")
+                except:
+                    x = 0
+                    y = 0
+                    w = 40
+                    h = 40
+                #
+                _w = item.customWidget(self, module_path, int(w.strip()), int(h.strip()))
+                _w.set_size_request(int(w.strip()),int(h.strip()))
+                _w._type = "widget"
+                _w._name = item._MODULE
+                #
+                self._fixed.put(_w, int(x.strip()), int(y.strip()))
+                self.custom_widget_list.append(_w)
+                # create the enabled file
+                with open(enabled_file_path, "w") as _f:
+                    _f.write()
+            except:
+                pass
+        else:
+            try:
+                os.unlink(enabled_file_path)
+                for el in self.custom_widget_list[:]:
+                    if el._name == item._MODULE:
+                        self._fixed.remove(el)
+                        self.custom_widget_list.remove(el)
+            except:
+                pass
+    
+    def on_change_stack(self, btn, _stack, _w):
+        _stack.set_visible_child(_w)
+    
     def on_load_script(self, btn, popover):
         popover.popdown()
         #
@@ -3584,6 +3777,8 @@ class MainWindow(Gtk.ApplicationWindow):
             self.left_click_setted = 1
         else:
             self.left_click_setted = 0
+            
+        self.is_desktop_widget = None
         
     def on_da_gesture_c(self, o,n,x,y):
         self.background_context_menu_center(self._fixed, x, y)

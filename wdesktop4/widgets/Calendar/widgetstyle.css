@@ -1,0 +1,11 @@
+.wcalendar {
+background-color: #000000;
+border: 2px solid #888888;
+border-radius: 8px;
+padding: 10px;
+}
+
+.wcalendar calendar.view {
+background-color: #000000;
+color: #ffffff;
+}
