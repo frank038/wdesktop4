@@ -31,6 +31,9 @@ Features:
 - supports the command line arguments trash:// (the recycle bin) and media://DEVICE (mass storage devices) of my file manager SimpleFM6
 - applications can be dropped from the menu of my wbar4
 - folder custom icon support
-- can load a custom script to render something in the background using cairo; a sample script is provided; enable or disable it with the center mouse button.
+- can load a custom script to render something in the background using cairo; a sample script is provided; enable or disable it with the center mouse button
+- widgets.
+
+About widgets: custom widgets can be created in the folder widgets; two sample widgets, a calendar and a note taking, are provided as reference; to load them just use the center mouse button and press the entry 'Widgets': a dialog will appear; after selecting one name some infos and actions will appear; the same procedure for removing them; the widgets can be moved with the right mouse button and resized with the center mouse button (with some limitations in the size).
 
 Do not support multi monitors. May have some unknown issues.
