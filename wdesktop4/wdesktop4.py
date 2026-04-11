@@ -44,7 +44,7 @@ except:
     USER_DRAWING_ITEM = 0
 
 # the dialog for the widgets
-POPOVER_WIDGET_SIZE = 300
+POPOVER_WIDGET_SIZE = 40
 list_widgets = []
 
 def import_from_path(module_name, file_path):
