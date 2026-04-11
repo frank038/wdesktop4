@@ -34,6 +34,8 @@ Features:
 - can load a custom script to render something in the background using cairo; a sample script is provided; enable or disable it with the center mouse button
 - widgets.
 
+Important: the three file_manager bash files need to be changed depending on the user folder installations or preferences; the bash file open_terminal.sh need to be setted with the name of the terminal used by the user.
+
 About widgets: custom widgets can be created in the folder widgets; two sample widgets, a calendar and a note taking, are provided as reference; to load them just use the center mouse button and press the entry 'Widgets': a dialog will appear; after selecting one name some infos and actions will appear; the same procedure for removing them; the widgets can be moved with the right mouse button and resized with the center mouse button (with some limitations in the size).
 
 Do not support multi monitors. May have some unknown issues.
