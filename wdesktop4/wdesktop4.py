@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# V. 1.0
+# V. 1.1.0
 
 from cfgMain import *
 from cfglang import *
@@ -60,7 +60,7 @@ def load_desktop_widgets():
     mmod_custom = []
     if os.path.exists(os.path.join(_curr_dir, "widgets")):
         mmod_custom = os.listdir(os.path.join(_curr_dir, "widgets"))
-    if os.path.exists(os.path.join(_curr_dir, "widgets")):
+    # if os.path.exists(os.path.join(_curr_dir, "widgets")):
         for el in mmod_custom:
             try:
                 file_path = os.path.join(_curr_dir, "widgets", el, "widget_custom.py")
@@ -1668,21 +1668,20 @@ class MainWindow(Gtk.ApplicationWindow):
             self.css_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         
-        self.self_style_context = self.get_style_context()
-        self.self_style_context.add_class("mywdesktop")
+        self.set_name("mywdesktop")
         
         ###
         if USE_BACKGROUND_COLOR == 1:
-            css = ".mywdesktop {background-color: "+BACKGROUND_COLOR+";}"
+            css = "#mywdesktop {background-color: "+BACKGROUND_COLOR+";}"
         elif USE_BACKGROUND_COLOR == 0:
             image_path = os.path.join(_curr_dir,"wallpaper.png")
             if os.path.exists(image_path):
-                # css = ".mydesktop {background-image:url(file://"+"{}".format(image_path)+");"
-                css = ".mywdesktop {background-image:url(file://"+"{}".format(image_path)+"); background-size: cover;}"
+                # css = "#mydesktop {background-image:url(file://"+"{}".format(image_path)+");"
+                css = "#mywdesktop {background-image:url(file://"+"{}".format(image_path)+"); background-size: cover;}"
             else:
-                css = ".mywdesktop {background-color: grey;}"
+                css = "#mywdesktop {background-color: grey;}"
         elif USE_BACKGROUND_COLOR == 2:
-            css = ".mywdesktop {background-color: transparent;}"
+            css = "#mywdesktop {background-color: transparent;}"
         ###
         
         # layershell
@@ -1713,10 +1712,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._fixed.put(self.da, 0,0)
         self.da.set_size_request(self.screen_width,self.screen_height)
         
-        self.da_style_context = self.da.get_style_context()
-        self.da_style_context.add_class("myda")
+        self.da.set_name("myda")
         #
-        css_da = ".myda {background-color: transparent;}"
+        css_da = "#myda {background-color: transparent;}"
         #
         self.da.set_hexpand(False)
         self.da.set_vexpand(False)
@@ -3171,7 +3169,9 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             _data = self.clipboard.read_finish(res)
         except Exception as E:
+            _d.popdown()
             return
+        _d.popdown()
         _atom = "x-special/gnome-copied-files"
         gio_input_stream = _data[0]
         outputStream = Gio.MemoryOutputStream.new_resizable()
@@ -3244,10 +3244,11 @@ class MainWindow(Gtk.ApplicationWindow):
             self.clipboard.set_content(content)
         
         elif _type == "paste": # ok
-            popover.popdown()
+            # popover.popdown()
             _atom = "x-special/gnome-copied-files"
-            self.clipboard.read_async([_atom],1,None,self.get_data_paste,None)
-        
+            self.clipboard.read_async([_atom],1,None,self.get_data_paste,popover)
+            # popover.popdown()
+            
         elif _type == "trash": # ok
             popover.popdown()
             
@@ -3659,6 +3660,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     if el._name == item._MODULE:
                         self._fixed.remove(el)
                         self.custom_widget_list.remove(el)
+                        break
             except:
                 pass
     
