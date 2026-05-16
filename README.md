@@ -12,6 +12,9 @@ Requirements:
 - wayland (maybe should work also under xorg).
 - a window manager that support the layer shell protocol (if enabled)
 
+Important:
+- unless the following feature will not be used, it's needed that the file libgtk4-layer-shell.so must be present in the main folder; just copy that file from your libs directory and rename it properly.
+
 Features:
 - main file operations
 - drag and drop support
