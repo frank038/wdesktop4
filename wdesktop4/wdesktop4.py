@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 
-# V. 1.1.0
+# V. 1.1.1
 
 from cfgMain import *
 from cfglang import *
+
+from ctypes import CDLL
+CDLL('./libgtk4-layer-shell.so')
+# CDLL('libgtk4-layer-shell.so.1.0.4')
 
 import sys, os, shutil, signal, locale
 import gi
