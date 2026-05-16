@@ -5,13 +5,12 @@
 from cfgMain import *
 from cfglang import *
 
-from ctypes import CDLL
-CDLL('./libgtk4-layer-shell.so')
-# CDLL('libgtk4-layer-shell.so.1.0.4')
-
 import sys, os, shutil, signal, locale
 import gi
 if USE_LAYERSHELL == 1:
+    from ctypes import CDLL
+    CDLL('./libgtk4-layer-shell.so')
+    # CDLL('libgtk4-layer-shell.so.1.0.4')
     try:
         gi.require_version('Gtk4LayerShell', '1.0')
         from gi.repository import Gtk4LayerShell as GtkLayerShell
